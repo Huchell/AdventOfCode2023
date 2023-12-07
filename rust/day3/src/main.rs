@@ -95,7 +95,7 @@ fn parse_number(input: &str, index: usize) -> usize {
         .fold(0, |acc, digit| acc * 10 + digit as usize)
 }
 
-static NON_SYMBOLS_CHARS: &[char; 13] = &['.', '\r', '\n', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+static NON_SYMBOLS_CHARS: [char; 13] = ['.', '\r', '\n', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 fn is_symbol(ch: &char) -> bool {
     !NON_SYMBOLS_CHARS.contains(ch)
 }
