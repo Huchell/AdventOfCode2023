@@ -1,7 +1,52 @@
-use std::ops::Range;
+use std::{ops::Range, fs};
 
 fn main() {
-    println!("Hello, world!");
+    let input = get_input();
+
+    let almanac = Almanac::from_str(&input);
+
+    let part_1 = part_1(&almanac);
+    println!("Part 1 result: {part_1}");
+
+    let part_2 = part_2(&almanac);
+    println!("Part 2 result: {part_2}");
+}
+
+fn get_input() -> String {
+    String::from_utf8(fs::read("input").unwrap()).unwrap()
+}
+
+fn part_1(almanac: &Almanac) -> usize {
+    almanac.seeds
+        .iter()
+        .map(|seed| almanac.get_location(seed))
+        .min()
+        .unwrap()
+}
+
+fn part_2(almanac: &Almanac) -> usize {
+    let mut seeds = almanac.seeds.iter();
+    let mut total_seeds = vec![];
+    while let Some(&seed) = seeds.next() {
+        let range = seeds.next().unwrap();
+        total_seeds.push(seed..seed+range);
+    }
+
+    (0..).find_map(|x| {
+        let humidity = almanac.humidity_to_location.get_from(&x);
+        let temperature = almanac.temperature_to_humidity.get_from(&humidity);
+        let light = almanac.light_to_temperature.get_from(&temperature);
+        let water = almanac.water_to_light.get_from(&light);
+        let fertilizer = almanac.fertilizer_to_water.get_from(&water);
+        let soil = almanac.soil_to_fertilizer.get_from(&fertilizer);
+        let seed = almanac.seed_to_soil.get_from(&soil);
+
+        if total_seeds.iter().any(|s| s.contains(&seed)) {
+            Some(x)
+        } else {
+            None
+        }
+    }).unwrap()
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -58,14 +103,11 @@ impl Almanac {
 
     pub fn get_location(&self, seed: &usize) -> usize {
         let soil = self.seed_to_soil.get_to(seed);
-        println!();
-        let fertilizer = self.fertilizer_to_water.get_to(&soil);
-        println!();
+        let fertilizer = self.soil_to_fertilizer.get_to(&soil);
         let water = self.fertilizer_to_water.get_to(&fertilizer);
         let light = self.water_to_light.get_to(&water);
         let temperature = self.light_to_temperature.get_to(&light);
         let humidity = self.temperature_to_humidity.get_to(&temperature);
-        println!("{}, {}, {}, {}, {}, {}, {}, {}", seed, soil, fertilizer, water, light, temperature, humidity, self.humidity_to_location.get_to(&humidity));
         self.humidity_to_location.get_to(&humidity)
     }
 }
@@ -78,7 +120,7 @@ fn parse_seed_line(line: &str) -> Vec<usize> {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-struct Map {
+pub struct Map {
     from: Vec<Range<usize>>,
     to: Vec<Range<usize>>,
 }
@@ -91,24 +133,29 @@ impl Map {
         }
     }
 
-    pub fn to_and_from(to: Vec<Range<usize>>, from: Vec<Range<usize>>)  -> Self {
-        Self {
-            from,
-            to,
-        }
-    }
-
     pub fn get_to(&self, from_id: &usize) -> usize {
-        match self.get_range_id(from_id) {
+        match self.get_range_id(&self.from, from_id) {
             Some(range_id) => {
                 let from_range = self.from.get(range_id).unwrap();
                 let to_range = self.to.get(range_id).unwrap();
 
-                let (i, _) = from_range.clone().enumerate().find(|(_, from_i)| from_i == from_id).unwrap();
-                println!("{}-{}, {}-{}, {}", from_range.start, from_range.end, to_range.start, to_range.end, to_range.clone().skip(i).next().unwrap());
-                to_range.clone().skip(i).next().unwrap()
+                let i = from_id - from_range.start;
+                to_range.start + i
             },
             None => from_id.clone(),
+        }
+    }
+
+    pub fn get_from(&self, to_id: &usize) -> usize {
+        match self.get_range_id(&self.to, to_id) {
+            Some(range_id) => {
+                let from_range = self.from.get(range_id).unwrap();
+                let to_range = self.to.get(range_id).unwrap();
+
+                let i = to_id - to_range.start;
+                from_range.start + i
+            },
+            None => to_id.clone(),
         }
     }
 
@@ -120,12 +167,12 @@ impl Map {
         self.to.push(to)
     }
 
-    fn get_range_id(&self, from_id: &usize) -> Option<usize> {
-        self.from
+    fn get_range_id(&self, ranges: &Vec<Range<usize>>, id: &usize) -> Option<usize> {
+        ranges
             .iter()
             .enumerate()
             .find_map(|(i, range)| {
-                if range.contains(from_id) {
+                if range.contains(id) {
                     Some(i)
                 } else {
                     None
